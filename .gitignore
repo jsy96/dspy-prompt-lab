@@ -14,3 +14,4 @@ venv/
 # Vercel / editor
 .vercel/
 .DS_Store
+.claude/
