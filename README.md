@@ -22,7 +22,7 @@ Vercel Python Function  api/app.py (Flask 单 app)
 ```
 
 - **唯一环境变量**：`DEEPSEEK_API_KEY`。teacher（bootstrap）、裁判（judge）、对比模型都用 DeepSeek，复用同一个 key。
-- **模型**：`deepseek-chat`（当前对应 v4-flash 非思考模式）。2026/07/24 后官方改名，届时把 `api/dspy_lab.py` 里的 `DEEPSEEK_MODEL` 改成 `deepseek-v4-flash` 即可。
+- **模型**：`deepseek-v4-flash`（DeepSeek-V4-Flash 非思考模式，2026-04-24 起可用）。旧别名 `deepseek-chat` 当前仍路由到同一模型，但官方将于 **2026/07/24 15:59 UTC** 彻底停用（届时直接报错），因此本项目按官方"新接入直接用新名"的建议直接采用 `deepseek-v4-flash`。
 
 ## 文件结构
 
@@ -129,4 +129,4 @@ pip install litellm pydantic openai tenacity diskcache json-repair regex orjson 
 ## 备注
 
 - teacher 与裁判都走 DeepSeek，故全程只需一个 key。若想换回"dspy-glm"原意（用智谱 GLM 当 teacher），把 [api/dspy_lab.py](api/dspy_lab.py) 的 `make_lm` 改成智谱 anthropic 端点（需额外配 GLM key）。
-- `deepseek-chat` 当前有效；2026/07/24 起改用 `deepseek-v4-flash`，只改 `DEEPSEEK_MODEL` 常量一处。
+- 模型用 `deepseek-v4-flash`（官方对"新接入"的推荐）。旧别名 `deepseek-chat` 将于 2026/07/24 15:59 UTC 停用，切换只需改 `DEEPSEEK_MODEL` 常量一处，base_url 与 key 均不变。

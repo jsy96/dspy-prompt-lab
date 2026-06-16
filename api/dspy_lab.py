@@ -17,9 +17,11 @@ from dspy.signatures import make_signature
 # "/chat/completions" to a path DeepSeek accepts.
 DEEPSEEK_BASE = "https://api.deepseek.com"
 
-# deepseek-chat currently maps to v4-flash non-thinking mode. It is scheduled
-# to be renamed; after the deprecation, switch this one constant.
-DEEPSEEK_MODEL = "deepseek-chat"
+# DeepSeek-V4-Flash (non-thinking mode), available since 2026-04-24. The legacy
+# "deepseek-chat" alias still routes to this same model but is fully retired on
+# 2026/07/24 15:59 UTC (after that it 404s), so we use the explicit new name.
+# Base URL and API key are unchanged; only the model string moves.
+DEEPSEEK_MODEL = "deepseek-v4-flash"
 
 DEFAULT_INSTRUCTION = (
     "Given the input, produce the best possible output that fulfills the task."
