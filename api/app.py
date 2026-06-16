@@ -55,7 +55,7 @@ def _deepseek_completion(key: str, messages, *, max_tokens: int, temperature: fl
         messages=messages,
         max_tokens=max_tokens,
         temperature=temperature,
-        num_retries=2,
+        num_retries=1,  # cap tail latency under DeepSeek 429 storms (mirrored in make_lm)
     )
 
 

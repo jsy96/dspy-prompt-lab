@@ -42,7 +42,7 @@ dspy-prompt-lab/
 
 ### 方式 A：Git 集成（推荐）
 1. 推到 GitHub 仓库（`.env` 已被 `.gitignore` 排除，不会泄露 key）。
-2. Vercel 控制台 → **New Project** → Import 该仓库 → Framework 选 **Other**（Build / Output 都留空）。
+2. Vercel 控制台 → **New Project** → Import 该仓库 → Framework Preset 选 **Other**（Build / Output 都留空）。**切勿选 Flask preset**：它会把 app 打包成 single function，导致 `vercel.json` 里 `functions["api/app.py"]` 匹配不上，构建报 `unmatched-function-pattern`；只有 Other（file-based function）下 `api/app.py` 才被识别为函数，`maxDuration` 等配置才生效。
 3. **Settings → Environment Variables** 添加 `DEEPSEEK_API_KEY` = 你的 key，三个环境（Production / Preview / Development）都勾上。
 4. Deploy。失败先看 **Build Logs**（pip 体积）与 **Function Logs**（dspy import / 超时）。
 

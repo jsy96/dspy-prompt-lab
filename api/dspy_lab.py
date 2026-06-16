@@ -71,7 +71,7 @@ def make_lm(max_tokens: int = 512, temperature: float = 0.0) -> dspy.LM:
         cache=False,  # serverless double-insurance: never read/write disk cache
         max_tokens=max_tokens,
         temperature=temperature,
-        num_retries=2,
+        num_retries=1,  # cap tail latency under DeepSeek 429 storms (mirrored in _deepseek_completion)
     )
 
 
