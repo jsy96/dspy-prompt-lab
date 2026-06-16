@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DSPy Prompt Lab — 提示词优化 & 对比</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e8ec;
+    --muted: #9aa3b2;
+    --accent: #6ea8fe;
+    --accent-2: #7cf0c4;
+    --danger: #ff6b6b;
+    --warn: #ffd166;
+    --ok: #51cf66;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  header {
+    padding: 22px 28px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #14171e, var(--bg));
+  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .3px; }
+  header h1 .tag { color: var(--accent-2); font-family: var(--mono); font-size: 13px; margin-left: 8px; }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 22px 22px 80px; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+  .tab {
+    background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+    padding: 9px 16px; border-radius: 9px; cursor: pointer; font-size: 14px;
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--panel-2); color: var(--text); border-color: var(--accent); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin-bottom: 16px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 5px; }
+  input[type=text], textarea, select {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    font-family: inherit; font-size: 14px; resize: vertical;
+  }
+  textarea { min-height: 70px; font-family: var(--mono); }
+  textarea.tall { min-height: 130px; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  .row { display: grid; gap: 10px; }
+  .row.two { grid-template-columns: 1fr 1fr; }
+  .row.three { grid-template-columns: 1fr 1fr 28px; align-items: end; }
+  @media (max-width: 640px) { .row.two, .row.three { grid-template-columns: 1fr; } }
+
+  .ex-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+  .ex-item { display: grid; grid-template-columns: 1fr 1fr 28px; gap: 10px; align-items: start; }
+  .ex-item .x {
+    height: 40px; width: 28px; background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 8px; cursor: pointer; font-size: 16px;
+  }
+  .ex-item .x:hover { color: var(--danger); border-color: var(--danger); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 14px; }
+  .slider-wrap { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .slider-wrap input { width: 130px; }
+  .slider-wrap b { color: var(--text); font-family: var(--mono); min-width: 14px; text-align: center; }
+
+  button.primary {
+    background: var(--accent); color: #0b0d12; border: none; font-weight: 600;
+    padding: 11px 20px; border-radius: 9px; cursor: pointer; font-size: 14px;
+    transition: filter .15s, transform .05s;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:active { transform: translateY(1px); }
+  button.primary:disabled { opacity: .55; cursor: not-allowed; }
+  button.ghost {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+    padding: 9px 14px; border-radius: 9px; cursor: pointer; font-size: 13px;
+  }
+  button.ghost:hover { border-color: var(--accent); }
+  button.add {
+    background: var(--panel-2); color: var(--accent); border: 1px dashed var(--border);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  button.add:hover { border-color: var(--accent); }
+
+  .result { margin-top: 14px; }
+  .result-block {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 12px 14px; margin-bottom: 12px;
+  }
+  .result-block .lbl { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  pre.box {
+    margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--mono);
+    font-size: 13px; color: var(--text); max-height: 340px; overflow: auto;
+  }
+  .copy { float: right; }
+
+  .demo-grid { display: flex; flex-direction: column; gap: 10px; }
+  .demo-card {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px;
+    font-size: 13px;
+  }
+  .demo-card .k { color: var(--accent); font-family: var(--mono); font-size: 11px; text-transform: uppercase; }
+  .demo-card .v { font-family: var(--mono); margin: 2px 0 8px; white-space: pre-wrap; word-break: break-word; }
+  .demo-card .v:last-child { margin-bottom: 0; }
+
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .compare-grid { grid-template-columns: 1fr; } }
+  .col { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .col h3 { margin: 0 0 4px; font-size: 14px; }
+  .col .meta { color: var(--muted); font-size: 12px; margin-bottom: 10px; font-family: var(--mono); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; margin-left: 6px; }
+  .badge.plain { background: rgba(255,209,102,.15); color: var(--warn); }
+  .badge.opt { background: rgba(124,240,196,.15); color: var(--accent-2); }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
+    font-size: 12px; border: 1px solid var(--border); }
+  .pill.loaded { border-color: var(--accent-2); color: var(--accent-2); }
+  .pill.empty { color: var(--muted); }
+
+  /* diff */
+  .diff { font-family: var(--mono); font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .diff ins { background: rgba(124,240,196,.18); color: var(--accent-2); text-decoration: none; }
+  .diff del { background: rgba(255,107,107,.18); color: var(--danger); text-decoration: none; }
+
+  /* overlay + toast */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(8,10,14,.72); backdrop-filter: blur(3px);
+    display: none; align-items: center; justify-content: center; z-index: 50; flex-direction: column; gap: 14px;
+  }
+  #overlay.show { display: flex; }
+  .spinner { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #overlay .msg { color: var(--text); font-size: 14px; }
+  #overlay .sub { color: var(--muted); font-size: 12px; }
+
+  #toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--danger); color: #fff; padding: 11px 18px; border-radius: 9px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 60; max-width: 90vw;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .hidden { display: none !important; }
+  .stat { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .stat b { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1>DSPy Prompt Lab <span class="tag">dspy + DeepSeek</span></h1>
+  <p>功能①给样例，用 DSPy BootstrapFewShot 自动生成优化提示词；功能②普通提示词 vs 优化提示词，喂同一个 DeepSeek 看差异。</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab active" data-tab="optimize">① 生成优化提示词</button>
+    <button class="tab" data-tab="compare">② 对比效果</button>
+  </div>
+
+  <!-- ============ TAB A: OPTIMIZE ============ -->
+  <section id="tab-optimize">
+    <div class="card">
+      <h2>训练样例</h2>
+      <p class="hint">给 DSPy 一组「输入 → 期望输出」样例。BootstrapFewShot 会让 DeepSeek 当老师对它们重新生成带推理的演示，并用一个裁判模型筛选出最有效的几条，拼成优化提示词。</p>
+
+      <label>任务说明 / Instruction（可选，留空用默认）</label>
+      <textarea id="instruction" placeholder="例如：把英文短语翻译成简体中文。"></textarea>
+
+      <label>样例（1–8 条）</label>
+      <div class="ex-list" id="ex-list"></div>
+      <div class="controls">
+        <button class="add" id="add-ex">+ 添加样例</button>
+        <div class="slider-wrap">
+          <span>few-shot 条数</span>
+          <input type="range" id="max-demos" min="1" max="3" value="3" />
+          <b id="max-demos-val">3</b>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="primary" id="btn-optimize">生成优化提示词</button>
+        <span class="stat" id="opt-stats"></span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="opt-result">
+      <h2>优化结果</h2>
+      <div id="opt-demos"></div>
+      <label style="margin-top:14px;">完整优化提示词（system + few-shot 演示）</label>
+      <button class="ghost copy" id="copy-template">复制</button>
+      <pre class="box" id="opt-template"></pre>
+      <div class="controls">
+        <button class="primary" id="to-compare">用此结果去对比 →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB B: COMPARE ============ -->
+  <section id="tab-compare" class="hidden">
+    <div class="card">
+      <h2>对比设置</h2>
+
+      <label>普通提示词（你手写的朴素提示，纯文本）</label>
+      <textarea id="plain-prompt" class="tall" placeholder="例如：请把下面的英文翻译成中文。"></textarea>
+
+      <label>优化提示词</label>
+      <div class="controls" style="margin-top:0;">
+        <span class="pill empty" id="opt-pill">未载入优化提示词</span>
+        <button class="ghost" id="toggle-template">查看内容</button>
+      </div>
+      <pre class="box hidden" id="opt-template-view" style="margin-top:10px;"></pre>
+
+      <label>测试输入（两边都用它）</label>
+      <textarea id="test-input" placeholder="一个未出现在训练样例里的输入，例如：Translate: good night"></textarea>
+
+      <div class="controls">
+        <button class="primary" id="btn-compare">开始对比</button>
+        <span class="stat" id="cmp-stats"></span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="cmp-result">
+      <h2>输出对比</h2>
+      <div class="compare-grid">
+        <div class="col">
+          <h3>普通提示词 <span class="badge plain">plain</span></h3>
+          <div class="meta" id="plain-meta"></div>
+          <pre class="box" id="plain-out"></pre>
+        </div>
+        <div class="col">
+          <h3>优化提示词 <span class="badge opt">optimized</span></h3>
+          <div class="meta" id="opt-meta"></div>
+          <pre class="box" id="opt-out"></pre>
+        </div>
+      </div>
+      <label style="margin-top:16px;">差异（以普通侧为基准）</label>
+      <div class="diff" id="diff-out"></div>
+    </div>
+  </section>
+</main>
+
+<div id="overlay">
+  <div class="spinner"></div>
+  <div class="msg" id="ov-msg">处理中…</div>
+  <div class="sub" id="ov-sub"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+// ---- cross-tab state: the optimized prompt produced in tab A ---------------
+let optimized = null; // { instruction, demos, template_text }
+
+// ---- small DOM helpers ------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const esc = (s) => (s == null ? "" : String(s))
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), 4000);
+}
+function overlay(show, msg, sub) {
+  const o = $("overlay");
+  if (!show) { o.classList.remove("show"); return; }
+  o.classList.add("show");
+  $("ov-msg").textContent = msg || "处理中…";
+  $("ov-sub").textContent = sub || "";
+}
+async function api(path, payload) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let data = null;
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok || !data || data.ok === false) {
+    throw new Error((data && data.error) || ("HTTP " + res.status));
+  }
+  return data;
+}
+
+// ---- tabs -------------------------------------------------------------------
+document.querySelectorAll(".tab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const which = btn.dataset.tab;
+    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
+    $("tab-optimize").classList.toggle("hidden", which !== "optimize");
+    $("tab-compare").classList.toggle("hidden", which !== "compare");
+  });
+});
+
+// ---- examples editor --------------------------------------------------------
+function addExample(inp = "", out = "") {
+  const list = $("ex-list");
+  if (list.children.length >= 8) { toast("最多 8 条样例"); return; }
+  const item = document.createElement("div");
+  item.className = "ex-item";
+  item.innerHTML =
+    '<input type="text" class="ex-in" placeholder="输入 input" />' +
+    '<input type="text" class="ex-out" placeholder="期望输出 output" />' +
+    '<button class="x" title="删除">×</button>';
+  item.querySelector(".ex-in").value = inp;
+  item.querySelector(".ex-out").value = out;
+  item.querySelector(".x").addEventListener("click", () => item.remove());
+  list.appendChild(item);
+}
+$("add-ex").addEventListener("click", () => addExample());
+
+// seed with a couple of translation examples so the page is usable on first load
+addExample("Translate: good morning", "早上好");
+addExample("Translate: thank you", "谢谢");
+addExample("Translate: sorry", "对不起");
+
+$("max-demos").addEventListener("input", (e) => $("max-demos-val").textContent = e.target.value);
+
+function collectExamples() {
+  const out = [];
+  document.querySelectorAll("#ex-list .ex-item").forEach((it) => {
+    const input = it.querySelector(".ex-in").value.trim();
+    const output = it.querySelector(".ex-out").value.trim();
+    if (input && output) out.push({ input, output });
+  });
+  return out;
+}
+
+// ---- optimize ---------------------------------------------------------------
+$("btn-optimize").addEventListener("click", async () => {
+  const examples = collectExamples();
+  if (examples.length < 1) { toast("至少填一条完整样例"); return; }
+  const payload = {
+    examples,
+    instruction: $("instruction").value.trim(),
+    max_bootstrapped_demos: parseInt($("max-demos").value, 10),
+  };
+  $("btn-optimize").disabled = true;
+  overlay(true, "正在用 DSPy 优化提示词…", "BootstrapFewShot 会调用 DeepSeek 多次，约 30–90 秒");
+  try {
+    const d = await api("/api/optimize", payload);
+    renderOptimized(d);
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    $("btn-optimize").disabled = false;
+    overlay(false);
+  }
+});
+
+function renderOptimized(d) {
+  optimized = {
+    instruction: d.instruction,
+    demos: d.demos || [],
+    template_text: d.template_text || "",
+  };
+  $("opt-template").textContent = d.template_text || "(空)";
+  $("opt-stats").innerHTML = d.stats
+    ? `样例 <b>${d.stats.examples}</b> · bootstrap 产出 <b>${d.stats.bootstrapped}</b> · 演示总数 <b>${d.stats.demos_total}</b>`
+    : "";
+  if (d.note) toast(d.note);
+
+  // demo cards
+  const wrap = $("opt-demos");
+  wrap.innerHTML = "";
+  const grid = document.createElement("div");
+  grid.className = "demo-grid";
+  (d.demos || []).forEach((demo, i) => {
+    const card = document.createElement("div");
+    card.className = "demo-card";
+    card.innerHTML =
+      `<div class="k">#${i + 1} input</div><div class="v">${esc(demo.input)}</div>` +
+      (demo.reasoning ? `<div class="k">reasoning</div><div class="v">${esc(demo.reasoning)}</div>` : "") +
+      `<div class="k">output</div><div class="v">${esc(demo.output)}</div>`;
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+
+  $("opt-result").classList.remove("hidden");
+  $("opt-result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("copy-template").addEventListener("click", () => {
+  navigator.clipboard.writeText($("opt-template").textContent).then(
+    () => toast("已复制优化提示词"),
+    () => toast("复制失败")
+  );
+});
+
+$("to-compare").addEventListener("click", () => {
+  if (!optimized) { toast("请先生成优化提示词"); return; }
+  refreshOptimizedPill();
+  document.querySelector('.tab[data-tab="compare"]').click();
+});
+
+// ---- compare ----------------------------------------------------------------
+function refreshOptimizedPill() {
+  const pill = $("opt-pill");
+  if (optimized && (optimized.demos.length || optimized.instruction)) {
+    pill.className = "pill loaded";
+    pill.textContent = `已载入优化提示词（${optimized.demos.length} 条演示）`;
+    $("opt-template-view").textContent = optimized.template_text || "(无内容)";
+  } else {
+    pill.className = "pill empty";
+    pill.textContent = "未载入优化提示词";
+  }
+}
+$("toggle-template").addEventListener("click", () => {
+  $("opt-template-view").classList.toggle("hidden");
+});
+
+$("btn-compare").addEventListener("click", async () => {
+  const plain_prompt = $("plain-prompt").value.trim();
+  const test_input = $("test-input").value.trim();
+  if (!test_input) { toast("请填测试输入"); return; }
+  if (!plain_prompt && !(optimized && (optimized.demos.length || optimized.instruction))) {
+    toast("需要普通提示词或优化提示词至少一项"); return;
+  }
+  const payload = {
+    plain_prompt,
+    test_input,
+    instruction: optimized ? optimized.instruction : "",
+    demos: optimized ? optimized.demos : [],
+  };
+  $("btn-compare").disabled = true;
+  overlay(true, "正在对比…", "两次 DeepSeek 调用，约 3–12 秒");
+  try {
+    const d = await api("/api/compare", payload);
+    renderCompare(d);
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    $("btn-compare").disabled = false;
+    overlay(false);
+  }
+});
+
+function renderCompare(d) {
+  const plainOut = (d.plain && (d.plain.output || d.plain.error)) || "(无)";
+  const optOut = (d.optimized && (d.optimized.output || d.optimized.error)) || "(无)";
+  $("plain-out").textContent = plainOut;
+  $("opt-out").textContent = optOut;
+  $("plain-meta").textContent = d.plain ? `latency ${d.plain.latency_ms} ms` : "未运行";
+  $("opt-meta").textContent = d.optimized ? `latency ${d.optimized.latency_ms} ms` : "未运行";
+  $("cmp-stats").textContent = `总耗时 ${d.elapsed_ms} ms`;
+  $("diff-out").innerHTML = renderDiff(
+    (d.plain && d.plain.output) || "",
+    (d.optimized && d.optimized.output) || ""
+  );
+  $("cmp-result").classList.remove("hidden");
+  $("cmp-result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---- word-level diff (LCS) --------------------------------------------------
+function tokenize(s) { return s.length ? s.split(/(\s+)/) : []; }
+function renderDiff(a, b) {
+  const A = tokenize(a), B = tokenize(b);
+  const n = A.length, m = B.length;
+  // dp[i][j] = LCS length of A[i:], B[j:]
+  const dp = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  let i = 0, j = 0, html = "";
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { html += esc(A[i]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { html += `<del>${esc(A[i])}</del>`; i++; }
+    else { html += `<ins>${esc(B[j])}</ins>`; j++; }
+  }
+  while (i < n) { html += `<del>${esc(A[i++])}</del>`; }
+  while (j < m) { html += `<ins>${esc(B[j++])}</ins>`; }
+  return html || '<span style="color:var(--muted)">（两段输出完全相同）</span>';
+}
+</script>
+</body>
+</html>
