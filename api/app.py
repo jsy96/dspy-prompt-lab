@@ -15,6 +15,16 @@ DEEPSEEK_API_KEY environment variable on every call (never hardcoded).
 """
 from __future__ import annotations
 
+import os
+import sys
+
+# Vercel's @vercel/python runtime imports this entry module by absolute path but
+# does not put its own directory on sys.path, so the sibling `dspy_lab` helper
+# raises ModuleNotFoundError in production (locally it only works because we run
+# with PYTHONPATH=api). Insert this file's directory first so `from dspy_lab
+# import ...` resolves identically in both environments.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import time
 
 import dspy
