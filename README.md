@@ -15,14 +15,15 @@
    ▼
 Vercel Python Function  api/app.py (Flask 单 app)
    ├── POST /api/optimize   dspy BootstrapFewShot 生成优化提示词
-   ├── POST /api/compare    普通 vs 优化 提示词 喂 DeepSeek 对比
+   ├── POST /api/compare    普通 vs 优化 提示词 喂当前 LLM 对比
    └── GET  /api/health     存活探测（不调 API）
         │
-        └──→ DeepSeek API  https://api.deepseek.com   [key 从环境变量读]
+        └──→ 当前 LLM  GLM_API_KEY 在场→GLM-5.1 (https://open.bigmodel.cn/api/anthropic)
+                否则→DeepSeek (https://api.deepseek.com)   [key 从环境变量读，见 _select_provider()]
 ```
 
-- **唯一环境变量**：`DEEPSEEK_API_KEY`。teacher（bootstrap）、裁判（judge）、对比模型都用 DeepSeek，复用同一个 key。
-- **模型**：`deepseek-v4-flash`（DeepSeek-V4-Flash 非思考模式，2026-04-24 起可用）。旧别名 `deepseek-chat` 当前仍路由到同一模型，但官方将于 **2026/07/24 15:59 UTC** 彻底停用（届时直接报错），因此本项目按官方"新接入直接用新名"的建议直接采用 `deepseek-v4-flash`。
+- **环境变量**：本地用 `GLM_API_KEY`（智谱 token，走 GLM-5.1 的 anthropic 端点）；若只设 `DEEPSEEK_API_KEY` 则自动回退到 DeepSeek。Vercel 部署只配 `DEEPSEEK_API_KEY`。teacher（bootstrap）、裁判（judge）、对比模型三者复用同一个被选中的 provider + key。
+- **模型**：本地默认 `glm-5.1`（`GLM_API_KEY` 命中时，端点 https://open.bigmodel.cn/api/anthropic）；回退 / Vercel 线上为 `deepseek-v4-flash`（DeepSeek-V4-Flash 非思考模式，2026-04-24 起可用）。旧别名 `deepseek-chat` 将于 **2026/07/24 15:59 UTC** 彻底停用。
 
 ## 文件结构
 
@@ -55,26 +56,74 @@ vercel env add DEEPSEEK_API_KEY      # 粘贴 key，选所有环境
 vercel --prod
 ```
 
-## 本地调试
+## 本地部署（GLM-5.1）
 
-```bash
-# 1) 把 key 拉到本地 .env（或手写 .env：DEEPSEEK_API_KEY=sk-...）
-vercel env pull .env
+本仓库已经把后端改造成**按环境变量自动选择模型**的双 provider 结构：同一个 `api/app.py` 既能本地跑 GLM-5.1，也能在 Vercel 上跑 DeepSeek。本节只讲本地用 GLM-5.1 的流程。
 
-# 2) 启动本地（自带 Python runtime + 静态托管）
-vercel dev
-# 打开提示的地址（通常 http://localhost:3000）
+### 前置条件
+
+- **uv**：本机没有系统级 Python，所有 Python 一律走 uv（PATH 里的 `uv`，或 `C:\ProgramData\chocolatey\bin\uv.exe`）。`start.bat` 会自动定位 uv，找不到就报错退出。
+- **GLM_API_KEY**：一个智谱 token（和 Claude Code 在本机调用的 `ANTHROPIC_AUTH_TOKEN` 是同一个值）。无需另装系统 Python、无需 venv、无需 `pip install`。
+
+### 三种设置 GLM_API_KEY 的方式
+
+1. **临时设置**（只在当前 cmd 窗口有效）：在启动前先 `set GLM_API_KEY=你的智谱token`，再运行 `start.bat`。
+2. **`.env` 文件**（推荐，最省事）：在仓库根目录建一个 `.env`，写入一行：
+   ```env
+   GLM_API_KEY=你的智谱token
+   ```
+   `.env` 的格式是 `KEY=VALUE`，`#` 开头为注释。`.env` 已被 `.gitignore` 排除，不会泄露 key。
+3. **永久系统环境变量**：在 Windows 系统环境变量里设置 `GLM_API_KEY`，新开的 cmd 窗口都会带上。
+
+> 注意：`.env` 里的值**不会覆盖已经存在的环境变量**（沿用 dotenv 语义，`start.bat` 里的判断是 `if not defined %%a set "%%a=%%b"`）。所以临时 set 优先级最高。
+
+### 启动
+
+双击根目录的 `start.bat`，或在 cmd 里运行：
+
+```bat
+start.bat
 ```
 
-不想装 Vercel CLI 时，可直接用 Flask 跑后端（仅 API，无静态托管）：
-```bash
-# 本机用 uv（无系统 python）
-uv venv .venv --python 3.12
-uv pip install -r requirements.txt
-# Windows (git bash)
-DEEPSEEK_API_KEY=sk-xxx PYTHONPATH=api uv run --no-project python -c "from app import app; app.run(port=5000)"
+`start.bat` 会依次：定位 uv → 加载 `.env`（不覆盖已有变量）→ 检查 `GLM_API_KEY` 或 `DEEPSEEK_API_KEY` 至少有一个 → 打印当前用的是哪个 provider → 以 `PYTHONPATH=api` 执行：
+
+```bat
+uv run --no-project --with "dspy==3.2.1" --with "flask>=3.0,<4.0" python run_local.py
 ```
-然后浏览器开 `http://localhost:5000`（前端用 fetch 同源 `/api/*`；如需页面，单独用任意静态服务器托管 `index.html` 并把 fetch 改成绝对地址 `http://localhost:5000/api/...`）。
+
+### 打开的地址
+
+```
+http://127.0.0.1:5000
+```
+
+这一个 URL 同时托管前端页面和所有 `/api/*` 接口——`run_local.py` 启动的 Flask 服务新增了 `GET /`，会用 `send_from_directory` 把根目录的 `index.html` 发给浏览器；而 `index.html` 里的 fetch 用的就是同源相对路径 `/api/optimize`、`/api/compare`，所以页面和接口在同一个 5000 端口上，无需 CORS、无需改 URL、无需另开静态服务器。
+
+### 用的模型和端点
+
+- **模型**：`glm-5.1`
+- **端点**：`https://open.bigmodel.cn/api/anthropic`（litellm provider 前缀为 `anthropic`，走 Anthropic 消息格式）
+
+> **为什么必须用 anthropic 端点而不是 openai/paas 端点**：GLM Coding 套餐**只在 anthropic 兼容端点计费**。如果改用 OpenAI 兼容的 `paas/v4` 端点，会直接返回 HTTP 429、错误码 `1113`（余额不足）。本项目的 GLM 接入已经按 anthropic 端点写死，开箱即用。
+
+provider 选择规则在 [api/dspy_lab.py](api/dspy_lab.py) 的 `_select_provider()`：环境里有 `GLM_API_KEY` 就走 GLM-5.1，否则走 DeepSeek。
+
+### 自动回退到 DeepSeek
+
+如果环境里**没有** `GLM_API_KEY`、**只有** `DEEPSEEK_API_KEY`，启动会自动回退到 DeepSeek（模型 `deepseek-v4-flash`，端点 `https://api.deepseek.com`），`start.bat` 会打印 `LLM provider: DeepSeek` 提示当前用的不是 GLM。两个 key 一个都没有则启动报错。
+
+### Vercel 部署不受影响
+
+Vercel 上只配了 `DEEPSEEK_API_KEY`、没有 `GLM_API_KEY`，所以线上一如既往走 DeepSeek；新增的 `GET /` 路由在 Vercel 上会被静态 `index.html` 托管覆盖，对本仓库的线上行为零影响。
+
+## 本地调试（Vercel CLI，DeepSeek 侧）
+
+若想用 `vercel dev` 调试线上同款 DeepSeek 流程（而非 GLM-5.1），照旧设 `DEEPSEEK_API_KEY`：
+
+```bash
+vercel env pull .env      # 或手写 .env：DEEPSEEK_API_KEY=sk-...
+vercel dev                # 打开 http://localhost:3000
+```
 
 ## 端到端验证
 
@@ -86,8 +135,8 @@ PYTHONPATH=api uv run --no-project --with 'dspy==3.2.1' --with 'flask>=3.0,<4.0'
 
 **手动 curl**：
 ```bash
-# 存活探测（不花钱）
-curl http://localhost:3000/api/health
+# 存活探测（不花钱）。本地 start.bat 在 http://127.0.0.1:5000 ；vercel dev 在 http://localhost:3000
+curl http://127.0.0.1:5000/api/health
 
 # 功能①：生成优化提示词
 curl -X POST http://localhost:3000/api/optimize \
@@ -128,5 +177,5 @@ pip install litellm pydantic openai tenacity diskcache json-repair regex orjson 
 
 ## 备注
 
-- teacher 与裁判都走 DeepSeek，故全程只需一个 key。若想换回"dspy-glm"原意（用智谱 GLM 当 teacher），把 [api/dspy_lab.py](api/dspy_lab.py) 的 `make_lm` 改成智谱 anthropic 端点（需额外配 GLM key）。
-- 模型用 `deepseek-v4-flash`（官方对"新接入"的推荐）。旧别名 `deepseek-chat` 将于 2026/07/24 15:59 UTC 停用，切换只需改 `DEEPSEEK_MODEL` 常量一处，base_url 与 key 均不变。
+- teacher、裁判、对比模型三者复用同一个被选中的 provider + key（GLM 或 DeepSeek）。GLM 现已是本地默认 provider：设 `GLM_API_KEY` 即自动启用智谱 GLM-5.1（anthropic 端点），无需改代码。
+- 模型 / 端点均由 [api/dspy_lab.py](api/dspy_lab.py) 的 `_select_provider()` 从环境变量决定（导出常量为 `LLM_MODEL` / `LLM_BASE` / `LLM_PREFIX` / `KEY_ENV`）；切换模型改这里的逻辑即可。

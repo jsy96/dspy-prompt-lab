@@ -1,4 +1,4 @@
-"""dspy-prompt-lab backend — a Flask single-app deployed as a Vercel Function.
+"""dspy-prompt-lab backend — a Flask single-app.
 
 Two endpoints, both backed by the real Python ``dspy`` package:
 
@@ -8,10 +8,15 @@ Two endpoints, both backed by the real Python ``dspy`` package:
 
   POST /api/compare
       Feed a hand-written "plain prompt" and the "optimized prompt" to the same
-      DeepSeek model on one test input and return both outputs + latencies.
+      LLM on one test input and return both outputs + latencies.
 
-DeepSeek is reached via its OpenAI-compatible endpoint; the key is read from the
-DEEPSEEK_API_KEY environment variable on every call (never hardcoded).
+  GET  /api/health
+      Cheap liveness probe that does not call the LLM.
+
+The LLM is chosen by which API key is set: GLM_API_KEY -> Zhipu GLM-5.1 via the
+anthropic-compatible endpoint, otherwise DEEPSEEK_API_KEY -> DeepSeek. The key is
+read from the environment on every call (never hardcoded). Deployed as a Vercel
+Function; locally the same app runs via `run_local.py` / `start.bat`.
 """
 from __future__ import annotations
 
@@ -32,12 +37,13 @@ import litellm
 from dspy.adapters import ChatAdapter
 from dspy.predict import ChainOfThought, Predict
 from dspy.teleprompt import BootstrapFewShot
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
 from dspy_lab import (
-    DEEPSEEK_BASE,
-    DEEPSEEK_MODEL,
     DEFAULT_INSTRUCTION,
+    LLM_BASE,
+    LLM_MODEL,
+    LLM_PREFIX,
     build_signature,
     build_cot_signature,
     configure,
@@ -56,16 +62,16 @@ def _err(msg: str, code: int = 400):
     return jsonify({"ok": False, "error": msg}), code
 
 
-def _deepseek_completion(key: str, messages, *, max_tokens: int, temperature: float = 0.0):
-    """One direct DeepSeek call via litellm (openai-compatible provider)."""
+def _llm_completion(key: str, messages, *, max_tokens: int, temperature: float = 0.0):
+    """One direct LLM call via litellm on the active provider (GLM or DeepSeek)."""
     return litellm.completion(
-        model=f"openai/{DEEPSEEK_MODEL}",
-        api_base=DEEPSEEK_BASE,
+        model=f"{LLM_PREFIX}/{LLM_MODEL}",
+        api_base=LLM_BASE,
         api_key=key,
         messages=messages,
         max_tokens=max_tokens,
         temperature=temperature,
-        num_retries=1,  # cap tail latency under DeepSeek 429 storms (mirrored in make_lm)
+        num_retries=1,  # cap tail latency under 429 storms (mirrored in make_lm)
     )
 
 
@@ -123,7 +129,7 @@ def optimize():
                 f"Reference: {expected}\nCandidate: {got}"
             )
             try:
-                resp = _deepseek_completion(
+                resp = _llm_completion(
                     key,
                     [{"role": "user", "content": prompt}],
                     max_tokens=4,
@@ -222,7 +228,7 @@ def compare():
     if plain_prompt:
         try:
             t0 = time.time()
-            resp = _deepseek_completion(
+            resp = _llm_completion(
                 key,
                 [{"role": "user", "content": f"{plain_prompt}\n\nInput:\n{test_input}"}],
                 max_tokens=512,
@@ -266,7 +272,19 @@ def compare():
 @app.get("/api/health")
 def health():
     """Cheap liveness probe that does not call DeepSeek."""
-    return jsonify({"ok": True, "model": DEEPSEEK_MODEL})
+    return jsonify({"ok": True, "model": LLM_MODEL})
+
+
+# Project root (this file lives in api/, so root is one level up). Used only by
+# the local `/` route that serves the single-page frontend; on Vercel the static
+# index.html is served directly and this route is never reached.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@app.get("/")
+def index():
+    """Serve the single-page frontend so the local server is a one-stop URL."""
+    return send_from_directory(_ROOT, "index.html")
 
 
 # Expose `app` for Vercel's Python runtime (it looks for an `app` variable at
